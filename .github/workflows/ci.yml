@@ -1,5 +1,4 @@
 
-
 name: CI
 
 on:
@@ -24,5 +23,5 @@ jobs:
       
       - name: Push image
         run: |
-             docker lodin -u rivelino86 -p ${{secret.REGISTRY_PASS}}
+             docker login -u rivelino86 -p ${{ secret.REGISTRY_PASS }}
              docker push rivelino86/portfolio
