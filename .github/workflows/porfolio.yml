@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ env.python_version }}
+      - name: Install dependencies
+        run: pip install pytest
       - name: Unit test
         run: pytest
       - name: Build image
