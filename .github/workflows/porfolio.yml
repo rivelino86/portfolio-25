@@ -1,0 +1,23 @@
+name: Udp App ci/cd
+
+on:
+  
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+env:
+ python_version: 3.11
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.python_version }}
+      - name: Unit test
+        run: pytest
+      - name: Build image
+        run: docker build -t rivelino86/portfolio:${{github.run_number}} .
