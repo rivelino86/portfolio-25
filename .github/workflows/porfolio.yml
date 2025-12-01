@@ -69,6 +69,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+        - name: Checkout repo
+          uses: actions/checkout@v4   
         - name: Deploy to Amazon ECS
           uses: aws-actions/amazon-ecs-deploy-task-definition@v2
           with:
