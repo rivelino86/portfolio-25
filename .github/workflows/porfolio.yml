@@ -49,4 +49,4 @@ jobs:
               image-ref: 'rivelino86/portfolio:${{ github.run_number }}'
               format: 'table'
               exit-code: '1'    # fails pipeline if vulnerabilities found
-              severity: 'HIGH,CRITICAL'
+              #severity: 'HIGH,CRITICAL'
