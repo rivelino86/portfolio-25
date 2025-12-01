@@ -33,6 +33,8 @@ jobs:
   Build:
       runs-on: ubuntu-latest
       steps:
+        - name: checkout the code
+          uses: actions/checkout@v4
         - name: Build & push Docker image
           run: docker build -t rivelino86/portfolio-cicd:${{ github.run_number }} .
   Scan: 
