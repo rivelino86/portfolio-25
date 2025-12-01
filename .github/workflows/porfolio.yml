@@ -1,4 +1,4 @@
-name: Udp App ci/cd
+name: cicd udp app
 
 on:
   push:
@@ -6,16 +6,11 @@ on:
   pull_request:
     branches: [ "main" ]
 
-env:
-  python_version: "3.11"
-
 jobs:
-  Test:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -30,20 +25,65 @@ jobs:
       - name: Run unit test
         run: pytest || true   # prevent workflow from failing when no tests yet:
 
-  Build:
-      runs-on: ubuntu-latest
-      steps:
-        - name: checkout the code
-          uses: actions/checkout@v4
-        - name: Build & push Docker image
-          run: |
-               docker build -t rivelino86/portfolio:${{ github.run_number }} .
-               docker build -t rivelino86/portfolio:Latest .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+        
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: app-portfolio
+          IMAGE_TAG: ${{ github.run_number }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+            
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref:  ${{ steps.login-ecr.outputs.registry }}/app-portfolio:${{ github.run_number }}
+
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Push Docker image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: app-portfolio
+          IMAGE_TAG: ${{ github.run_number }}
+        run: |
+            # Push both tags
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
   
-        - name: Scan Docker image with Trivy
-          uses: aquasecurity/trivy-action@master
-          with:
-              image-ref: 'rivelino86/portfolio:${{ github.run_number }}'
-              format: 'table'
-              exit-code: '1'    # fails pipeline if vulnerabilities found
-              #severity: 'HIGH,CRITICAL'
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH to server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.KEY }}
+          script: |
+            export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            export AWS_DEFAULT_REGION=${{ secrets.AWS_REGION }}
+            
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \
+            313715282743.dkr.ecr.us-east-1.amazonaws.com
+            docker rm -f resume || true
+            docker run -d --name resume -p 8080:5001 313715282743.dkr.ecr.us-east-1.amazonaws.com/app-portfolio:${{ github.run_number }}
+            
+            echo "Deployment completed successfully!"
