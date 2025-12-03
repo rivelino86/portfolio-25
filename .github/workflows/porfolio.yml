@@ -14,7 +14,7 @@ permissions:
 env:
     python_version: 3.11
     AWS_REGION: ${{ secrets.AWS_REGION }}  #us-east-1
-    ECR_REPO: ${ACCOUNT_ID}.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_NAME
+    ECR_REPO: ${ACCOUNT_ID}.dkr.ecr.$AWS_REGION.amazonaws.com/portfolio25
     ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
     IMAGE_NAME: portfolio25
 
@@ -35,7 +35,7 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
       - name: Run unit test
-        run: pytest 
+        run: pytest test.py
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
