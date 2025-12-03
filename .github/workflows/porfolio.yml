@@ -31,9 +31,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
       - name: Run unit test
         run: pytest test.py
       - name: Configure AWS credentials using OIDC
