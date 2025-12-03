@@ -41,7 +41,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Build docker image #Prevent workflow from failing when no tests yet
+      - name: Build docker image
         run: docker build -t riveluino86/portfolio25 .
          
       - name: list all s3 buckets
