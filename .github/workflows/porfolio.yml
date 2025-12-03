@@ -14,7 +14,7 @@ permissions:
 env:
     python_version: 3.11
     AWS_REGION: ${{ secrets.AWS_REGION }}  #us-east-1
-    ECR_REPO: $ACCOUNT_ID.ECR.$AWS_REGION.amazonaws.com/$IMAGE_NAME
+    ECR_REPO: ${ACCOUNT_ID}.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_NAME
     ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
     IMAGE_NAME: portfolio25
 
@@ -35,14 +35,34 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
       - name: Run unit test
-        run: pytest  test.py
+        run: pytest test.py
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Build docker image
-        run: docker build -t riveluino86/portfolio25 .
-         
-      - name: list all s3 buckets
-        run: aws s3 ls
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }} .
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Build Docker image
+      - name: Build Docker image
+        run: |
+          docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.ECR_REPO }}:${{ env.IMAGE_NAME }}:latest
+
+      # Trivy Scan
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.ECR_REPO }}:${{ env.IMAGE_NAME }}
+          format: table
+          exit-code: '1'    #fails if high/critical vulnerabilities
+          severity: CRITICAL,HIGH
+
+      - name: Push Docker image to Amazon ECR
+        run: |
+          docker push ${{ env.ECR_REPO }}:${{ env.IMAGE_NAME }}:latest
+     
