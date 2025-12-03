@@ -22,7 +22,6 @@ jobs:
         with:
             python-version: ${{env.python_version}}
 
-            # or $python_version
       - name: Install pytest
         run: pip install -r requirements.txt
       - name: unit test
