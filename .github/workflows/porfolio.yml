@@ -6,6 +6,19 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  id-token: write    # Required for OIDC
+  contents: read     # Required to access repo
+
+  
+env:
+    python_version: 3.11
+    AWS_REGION: ${{ secrets.AWS_REGION }}  #us-east-1
+    ECR_REPO: $ACCOUNT_ID.ECR.$AWS_REGION.amazonaws.com/$IMAGE_NAME
+    ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
+    IMAGE_NAME: portfolio25
+
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,105 +27,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.python_version }}
+          python-version: ${{ env.python_version }} # or $python_version
 
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
-
       - name: Run unit test
-        run: pytest || true   # prevent workflow from failing when no tests yet:
-
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        run: pytest test.py
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: app-portfolio
-          IMAGE_TAG: ${{ github.run_number }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-            
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref:  ${{ steps.login-ecr.outputs.registry }}/app-portfolio:${{ github.run_number }}
-
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Push Docker image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: app-portfolio
-          IMAGE_TAG: ${{ github.run_number }}
-        run: |
-            # Push both tags
-            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-            docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-  
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-      
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Render ECS task definition
-        id: render-task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json  # Create this file in your repo root
-          container-name: portfolio-container
-          image: ${{ steps.login-ecr.outputs.registry }}/app-portfolio:${{ github.run_number }}
-      
-      - name: Deploy to Amazon ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
-          service: ${{ env.SERVICE_NAME }}
-          cluster: ${{ env.CLUSTER_NAME }}
-          wait-for-service-stability: true
-        # uses: appleboy/ssh-action@v1
-        # with:
-        #   host: ${{ secrets.HOST }}
-        #   username: ${{ secrets.USERNAME }}
-        #   key: ${{ secrets.KEY }}
-        #   script: |
-        #     export AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-        #     export AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        #     export AWS_DEFAULT_REGION=${{ secrets.AWS_REGION }}
-            
-        #     aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \
-        #     313715282743.dkr.ecr.us-east-1.amazonaws.com
-        #     docker rm -f resume || true
-        #     docker run -d --name resume -p 8080:5001 313715282743.dkr.ecr.us-east-1.amazonaws.com/app-portfolio:${{ github.run_number }}
-            
-        #     echo "Deployment completed successfully!"
-        #     '''
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Build docker image #Prevent workflow from failing when no tests yet
+        run: docker build -t riveluino86/portfolio25 .
